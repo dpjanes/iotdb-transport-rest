@@ -1,2 +1,2 @@
-# iotdb-transport-rest
-IOTDB / HomeStar Transport for REST / express
+# iotdb-transport-fs
+IOTDB / HomeStar Transport for the File System
