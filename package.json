@@ -4,8 +4,10 @@
         "url": "https://github.com/dpjanes/iotdb-transport-rest/issues"
     }, 
     "dependencies": {
-        "iotdb": ">=0.5.8", 
         "validate": "~2.1.6"
+    }, 
+    "peerDependencies": {
+        "iotdb": ">=0.5.11"
     }, 
     "description": "HomeStar / IOTDB Bridge for Filesystems", 
     "devDependencies": {

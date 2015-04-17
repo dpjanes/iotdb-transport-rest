@@ -37,7 +37,9 @@ var logger = bunyan.createLogger({
 });
 
 /**
- *  Create a transport for FireBase.
+ *  Create a web interface for REST.
+ *  All the functions in this actually
+ *  don't do anything!
  */
 var RESTTransport = function (initd) {
     var self = this;
@@ -47,10 +49,22 @@ var RESTTransport = function (initd) {
         iotdb.keystore().get("/transports/RESTTransport/initd"),
         {
             prefix: ""
+            app: null,
+
+            list: null,     // a function to callback IDs, just like list() below
+            bands: null,    // a function
+            get: null,
+            putt: null,
         }
     );
     
     self.native = 1; // something
+};
+
+RESTTransport.prototype = new iotdb.transporter.Transport;
+
+RESTTransport.prototype._setup = function(app) {
+    app.get(self.initd.prefix, 
 };
 
 /**
@@ -71,8 +85,24 @@ RESTTransport.prototype.list = function(paramd, callback) {
         callback = arguments[0];
     }
 
+    // self.initd.listZZ(id, band, callback);
     // callback([ id ])
     // callback(null);
+};
+
+/**
+ *  Trigger the callback whenever a new thing is added.
+ *  NOT FINISHED
+ */
+RESTTransport.prototype.added = function(paramd, callback) {
+    var self = this;
+
+    if (arguments.length === 1) {
+        paramd = {};
+        callback = arguments[0];
+    }
+
+    var channel = self._channel();
 };
 
 /**
@@ -87,13 +117,7 @@ RESTTransport.prototype.get = function(id, band, callback) {
         throw new Error("band is required");
     }
 
-    var channel = self._channel(id, band);
-
-    // callback(id, band, null); does not exist
-    // OR
-    // callback(id, band, undefined); don't know
-    // OR
-    // callback(id, band, d); data
+    self.initd.get(id, band, callback);
 };
 
 /**
@@ -134,7 +158,7 @@ RESTTransport.prototype.updated = function(id, band, callback) {
 
 /**
  */
-RESTTransport.prototype.remove = function(id, band) {
+RESTTransport.prototype.remove = function(id) {
     var self = this;
 
     if (!id) {
