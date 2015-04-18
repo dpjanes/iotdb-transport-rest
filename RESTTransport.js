@@ -54,6 +54,14 @@ var RESTTransport = function (initd, app) {
 
     self.initd = _.defaults(
         initd,
+        {
+            channel: iotdb.transporter.channel,
+            unchannel: iotdb.transporter.unchannel,
+            encode: _encode,
+            decode: _decode,
+            pack: _pack,
+            unpack: _unpack,
+        },
         iotdb.keystore().get("/transports/RESTTransport/initd"),
         {
             prefix: "/"
@@ -147,7 +155,11 @@ RESTTransport.prototype._setup_app_thing_band = function() {
     });
 
     self.native.put(self._channel(':id', ':band'), function(request, response) {
-        self._emitter.emit("updated", request.params.id, request.params.band, request.body);
+        self._emitter.emit("updated", {
+            id: request.params.id, 
+            band: request.params.band, 
+            value: request.body,
+        });
 
         var rd = {
             "@id": self._channel(request.params.id, request.params.band),
@@ -199,71 +211,60 @@ RESTTransport.prototype.added = function(paramd, callback) {
 };
 
 /**
+ *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  <p>
+ *  Inherently this does nothing. To properly support this
+ *  you should use <code>iotdb.transport.bind</code>
+ *  to effectively replace this function.
  */
-RESTTransport.prototype.get = function(id, band, callback) {
-    var self = this;
-
-    if (!id) {
-        throw new Error("id is required");
-    }
-
-    callback(id, band, null);
+RESTTransport.prototype.get = function(paramd, callback) {
 };
 
 /**
+ *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  <p>
+ *  Inherently this does nothing. To properly support this
+ *  you should use <code>iotdb.transport.bind</code>
+ *  to effectively replace this function.
  */
 RESTTransport.prototype.update = function(id, band, value) {
-    var self = this;
-
-    if (!id) {
-        throw new Error("id is required");
-    }
-    if (!band) {
-        throw new Error("band is required");
-    }
-
-    var channel = self._channel(id, band, { mkdirs: true });
-    var d = _pack(value);
-
-    // do something
 };
 
 /**
+ *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  <p>
+ *  This will be triggered from the REST/Express API
  */
-RESTTransport.prototype.updated = function(id, band, callback) {
+RESTTransport.prototype.updated = function(paramd, callback) {
     var self = this;
 
     if (arguments.length === 1) {
-        id = null;
-        band = null;
+        paramd = {};
         callback = arguments[0];
-    } else if (arguments.length === 2) {
-        band = null;
-        callback = arguments[1];
     }
 
-    self._emitter.on("updated", function(updated_id, updated_band, updated_value) {
-        if (id && (updated_id !== id)) {
+    self._validate_updated(paramd, callback);
+
+    self._emitter.on("updated", function(ud) {
+        if (paramd.id && (ud.id !== paramd.id)) {
             return;
         }
-        if (band && (updated_band !== band)) {
+        if (paramd.band && (ud.band !== paramd.band)) {
             return;
         }
 
-        callback(updated_id, updated_band, updated_value);
+        callback(ud);
     });
 };
 
 /**
+ *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  <p>
+ *  Inherently this does nothing. To properly support this
+ *  you should use <code>iotdb.transport.bind</code>
+ *  to effectively replace this function.
  */
-RESTTransport.prototype.remove = function(id) {
-    var self = this;
-
-    if (!id) {
-        throw new Error("id is required");
-    }
-
-    var channel = self._channel(id, band);
+RESTTransport.prototype.remove = function(paramd) {
 };
 
 /* -- internals -- */
