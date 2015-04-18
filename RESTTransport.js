@@ -28,6 +28,7 @@ var bunyan = iotdb.bunyan;
 
 var path = require('path');
 
+var events = require('events');
 var util = require('util');
 var url = require('url');
 
@@ -36,46 +37,137 @@ var logger = bunyan.createLogger({
     module: 'RESTTransport',
 });
 
+/* --- constructor --- */
+
 /**
+ *  See {iotdb.transporter.Transport#Transport} for documentation.
+ *  <p>
  *  Create a web interface for REST.
- *  All the functions in this actually
- *  don't do anything!
+ *
+ *  @param {dictionary} initd
+ *
+ *  @param {object} app
+ *  An ExpressJS app
  */
-var RESTTransport = function (initd) {
+var RESTTransport = function (initd, app) {
     var self = this;
 
     self.initd = _.defaults(
         initd,
         iotdb.keystore().get("/transports/RESTTransport/initd"),
         {
-            prefix: ""
-            app: null,
-
-            list: null,     // a function to callback IDs, just like list() below
-            bands: null,    // a function
-            get: null,
-            putt: null,
+            prefix: "/"
         }
     );
     
-    self.native = 1; // something
+    self.native = app;
+
+    self._setup_app_thing_band();
+    self._setup_app_thing();
+    self._setup_app_things();
+
+    this._emitter = new events.EventEmitter();
 };
 
 RESTTransport.prototype = new iotdb.transporter.Transport;
 
-RESTTransport.prototype._setup = function(app) {
-    app.get(self.initd.prefix, 
+/* --- web --- */
+
+RESTTransport.prototype._setup_app_things = function() {
+    var self = this;
+
+    self.native.use(self._channel(), function(request, response) {
+        var ids = [];
+        self.list(function(id) {
+            if (id !== null) {
+                ids.push(self._channel(id));
+            } else {
+                var rd = {
+                    "@id": self._channel(),
+                    "item": ids,
+                };
+
+                response
+                    .set('Content-Type', 'application/json')
+                    .send(JSON.stringify(rd, null, 2))
+                    ;
+            }
+        });
+    });
 };
 
+RESTTransport.prototype._setup_app_thing = function() {
+    var self = this;
+
+    self.native.use(self._channel(':id'), function(request, response) {
+        self.get(request.params.id, null, function(get_id, get_band, get_value) {
+            var rd = {
+                "@id": self._channel(request.params.id),
+            };
+
+            if (get_value === null) {
+                response.status(404);
+                rd["error"] = "Not Found";
+            } else if (get_value.bands !== null) {
+                for (var bi in get_value.bands) {
+                    var band = get_value.bands[bi];
+                    rd[band] = self._channel(request.params.id, band);
+                }
+            }
+
+            response
+                .set('Content-Type', 'application/json')
+                .send(JSON.stringify(rd, null, 2))
+                ;
+        });
+    });
+};
+
+RESTTransport.prototype._setup_app_thing_band = function() {
+    var self = this;
+
+    self.native.get(self._channel(':id', ':band'), function(request, response) {
+        self.get(request.params.id, request.params.band, function(get_id, get_band, get_value) {
+            var rd = {
+                "@id": self._channel(request.params.id, request.params.band),
+            };
+
+            if (get_value === null) {
+                response.status(404);
+                rd["error"] = "Not Found";
+            } else {
+                _.defaults(rd, get_value);
+            }
+
+            response
+                .set('Content-Type', 'application/json')
+                .send(JSON.stringify(rd, null, 2))
+                ;
+        });
+    });
+
+    self.native.put(self._channel(':id', ':band'), function(request, response) {
+        self._emitter.emit("updated", request.params.id, request.params.band, request.body);
+
+        var rd = {
+            "@id": self._channel(request.params.id, request.params.band),
+        };
+
+        response
+            .set('Content-Type', 'application/json')
+            .send(JSON.stringify(rd, null, 2))
+            ;
+    });
+};
+
+/* --- methods --- */
+
 /**
- *  List all the IDs associated with this Transport.
- *
- *  The callback is called with a list of IDs
- *  and then null when there are no further values.
- *
- *  Note that this may not be memory efficient due
- *  to the way "value" works. This could be revisited
- *  in the future.
+ *  See {iotdb.transporter.Transport#Transport} for documentation.
+ *  <p>
+ *  Inherently this does nothing. To properly support this
+ *  you should use <code>iotdb.transport.bind</code>
+ *  to effectively replace this function.
  */
 RESTTransport.prototype.list = function(paramd, callback) {
     var self = this;
@@ -85,14 +177,15 @@ RESTTransport.prototype.list = function(paramd, callback) {
         callback = arguments[0];
     }
 
-    // self.initd.listZZ(id, band, callback);
-    // callback([ id ])
-    // callback(null);
+    callback(null);
 };
 
 /**
- *  Trigger the callback whenever a new thing is added.
- *  NOT FINISHED
+ *  See {iotdb.transporter.Transport#Transport} for documentation.
+ *  <p>
+ *  Inherently this does nothing. To properly support this
+ *  you should use <code>iotdb.transport.bind</code>
+ *  to effectively replace this function.
  */
 RESTTransport.prototype.added = function(paramd, callback) {
     var self = this;
@@ -113,11 +206,8 @@ RESTTransport.prototype.get = function(id, band, callback) {
     if (!id) {
         throw new Error("id is required");
     }
-    if (!band) {
-        throw new Error("band is required");
-    }
 
-    self.initd.get(id, band, callback);
+    callback(id, band, null);
 };
 
 /**
@@ -152,8 +242,16 @@ RESTTransport.prototype.updated = function(id, band, callback) {
         callback = arguments[1];
     }
 
+    self._emitter.on("updated", function(updated_id, updated_band, updated_value) {
+        if (id && (updated_id !== id)) {
+            return;
+        }
+        if (band && (updated_band !== band)) {
+            return;
+        }
 
-    // callback(id, band, undefined);
+        callback(updated_id, updated_band, updated_value);
+    });
 };
 
 /**
@@ -216,6 +314,3 @@ var _pack = function(d) {
  *  API
  */
 exports.RESTTransport = RESTTransport;
-
-
-var t = new RESTTransport();
