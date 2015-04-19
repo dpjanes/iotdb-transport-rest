@@ -84,14 +84,16 @@ RESTTransport.prototype = new iotdb.transporter.Transport;
 RESTTransport.prototype._setup_app_things = function() {
     var self = this;
 
-    self.native.use(self._channel(), function(request, response) {
+    var channel = self.initd.channel(self.initd);
+
+    self.native.use(channel, function(request, response) {
         var ids = [];
         self.list(function(id) {
             if (id !== null) {
-                ids.push(self._channel(id));
+                ids.push(self.initd.channel(self.initd, id));
             } else {
                 var rd = {
-                    "@id": self._channel(),
+                    "@id": self.initd.channel(self.initd),
                     "item": ids,
                 };
 
@@ -107,10 +109,12 @@ RESTTransport.prototype._setup_app_things = function() {
 RESTTransport.prototype._setup_app_thing = function() {
     var self = this;
 
-    self.native.use(self._channel(':id'), function(request, response) {
+    var channel = self.initd.channel(self.initd, ':id');
+
+    self.native.use(channel, function(request, response) {
         self.get(request.params.id, null, function(get_id, get_band, get_value) {
             var rd = {
-                "@id": self._channel(request.params.id),
+                "@id": self.initd.channel(self.initd, request.params.id),
             };
 
             if (get_value === null) {
@@ -119,7 +123,7 @@ RESTTransport.prototype._setup_app_thing = function() {
             } else if (get_value.bands !== null) {
                 for (var bi in get_value.bands) {
                     var band = get_value.bands[bi];
-                    rd[band] = self._channel(request.params.id, band);
+                    rd[band] = self.initd.channel(self.initd, request.params.id, band);
                 }
             }
 
@@ -134,10 +138,12 @@ RESTTransport.prototype._setup_app_thing = function() {
 RESTTransport.prototype._setup_app_thing_band = function() {
     var self = this;
 
-    self.native.get(self._channel(':id', ':band'), function(request, response) {
+    var channel = self.initd.channel(self.initd, ':id', ':band');
+
+    self.native.get(channel, function(request, response) {
         self.get(request.params.id, request.params.band, function(get_id, get_band, get_value) {
             var rd = {
-                "@id": self._channel(request.params.id, request.params.band),
+                "@id": self.initd.channel(self.initd, request.params.id, request.params.band),
             };
 
             if (get_value === null) {
@@ -154,7 +160,7 @@ RESTTransport.prototype._setup_app_thing_band = function() {
         });
     });
 
-    self.native.put(self._channel(':id', ':band'), function(request, response) {
+    self.native.put(channel, function(request, response) {
         self._emitter.emit("updated", {
             id: request.params.id, 
             band: request.params.band, 
@@ -162,7 +168,7 @@ RESTTransport.prototype._setup_app_thing_band = function() {
         });
 
         var rd = {
-            "@id": self._channel(request.params.id, request.params.band),
+            "@id": self.initd.channel(self.initd, request.params.id, request.params.band),
         };
 
         response
@@ -189,7 +195,10 @@ RESTTransport.prototype.list = function(paramd, callback) {
         callback = arguments[0];
     }
 
-    callback(null);
+    callback({
+        end: true,
+        error: new Error("N/A"),
+    });
 };
 
 /**
@@ -207,11 +216,21 @@ RESTTransport.prototype.added = function(paramd, callback) {
         callback = arguments[0];
     }
 
-    var channel = self._channel();
+    var channel = self.initd.channel(self.initd);
 };
 
 /**
- *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  See {iotdb.transporter.Transport#about} for documentation.
+ *  <p>
+ *  Inherently this does nothing. To properly support this
+ *  you should use <code>iotdb.transport.bind</code>
+ *  to effectively replace this function.
+ */
+RESTTransport.prototype.about = function(paramd, callback) {
+};
+
+/**
+ *  See {iotdb.transporter.Transport#get} for documentation.
  *  <p>
  *  Inherently this does nothing. To properly support this
  *  you should use <code>iotdb.transport.bind</code>
@@ -221,7 +240,7 @@ RESTTransport.prototype.get = function(paramd, callback) {
 };
 
 /**
- *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  See {iotdb.transporter.Transport#update} for documentation.
  *  <p>
  *  Inherently this does nothing. To properly support this
  *  you should use <code>iotdb.transport.bind</code>
@@ -231,7 +250,7 @@ RESTTransport.prototype.update = function(id, band, value) {
 };
 
 /**
- *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  See {iotdb.transporter.Transport#updated} for documentation.
  *  <p>
  *  This will be triggered from the REST/Express API
  */
@@ -258,7 +277,7 @@ RESTTransport.prototype.updated = function(paramd, callback) {
 };
 
 /**
- *  See {iotdb.transporter.Transport#XXX} for documentation.
+ *  See {iotdb.transporter.Transport#remove} for documentation.
  *  <p>
  *  Inherently this does nothing. To properly support this
  *  you should use <code>iotdb.transport.bind</code>
@@ -268,25 +287,6 @@ RESTTransport.prototype.remove = function(paramd) {
 };
 
 /* -- internals -- */
-RESTTransport.prototype._channel = function(id, band, paramd) {
-    var self = this;
-
-    paramd = _.defaults(paramd, {
-        mkdirs: false,
-    });
-
-    var channel = self.initd.prefix;
-    if (id) {
-        channel = path.join(channel, _encode(id));
-
-        if (band) {
-            channel = path.join(channel, _encode(band));
-        }
-    }
-
-    return channel;
-};
-
 var _encode = function(s) {
     return s.replace(/[\/$%#.\]\[]/g, function(c) {
         return '%' + c.charCodeAt(0).toString(16);
