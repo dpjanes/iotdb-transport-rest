@@ -88,10 +88,8 @@ RESTTransport.prototype._setup_app_things = function() {
 
     self.native.use(channel, function(request, response) {
         var ids = [];
-        self.list(function(id) {
-            if (id !== null) {
-                ids.push(self.initd.channel(self.initd, id));
-            } else {
+        self.list(function(ld) {
+            if (ld.end) {
                 var rd = {
                     "@id": self.initd.channel(self.initd),
                     "item": ids,
@@ -101,7 +99,11 @@ RESTTransport.prototype._setup_app_things = function() {
                     .set('Content-Type', 'application/json')
                     .send(JSON.stringify(rd, null, 2))
                     ;
+
+                return;
             }
+
+            ids.push(self.initd.channel(self.initd, ld.id));
         });
     });
 };
@@ -112,17 +114,19 @@ RESTTransport.prototype._setup_app_thing = function() {
     var channel = self.initd.channel(self.initd, ':id');
 
     self.native.use(channel, function(request, response) {
-        self.get(request.params.id, null, function(get_id, get_band, get_value) {
+        self.about({
+            id: request.params.id, 
+        }, function(ad) {
             var rd = {
                 "@id": self.initd.channel(self.initd, request.params.id),
             };
 
-            if (get_value === null) {
+            if ((ad.bands === null) || (ad.bands === undefined)) {
                 response.status(404);
                 rd["error"] = "Not Found";
-            } else if (get_value.bands !== null) {
-                for (var bi in get_value.bands) {
-                    var band = get_value.bands[bi];
+            } else if (_.isArray(ad.bands)) {
+                for (var bi in ad.bands) {
+                    var band = ad.bands[bi];
                     rd[band] = self.initd.channel(self.initd, request.params.id, band);
                 }
             }
@@ -141,16 +145,19 @@ RESTTransport.prototype._setup_app_thing_band = function() {
     var channel = self.initd.channel(self.initd, ':id', ':band');
 
     self.native.get(channel, function(request, response) {
-        self.get(request.params.id, request.params.band, function(get_id, get_band, get_value) {
+        self.get({
+            id: request.params.id, 
+            band: request.params.band, 
+        }, function(gd) {
             var rd = {
                 "@id": self.initd.channel(self.initd, request.params.id, request.params.band),
             };
 
-            if (get_value === null) {
+            if (gd.value === null) {
                 response.status(404);
                 rd["error"] = "Not Found";
             } else {
-                _.defaults(rd, get_value);
+                _.defaults(rd, gd.value);
             }
 
             response
