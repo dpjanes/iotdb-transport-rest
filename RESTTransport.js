@@ -124,7 +124,7 @@ RESTTransport.prototype._setup_app_thing = function() {
             if ((ad.bands === null) || (ad.bands === undefined)) {
                 response.status(404);
                 rd["error"] = "Not Found";
-            } else if (_.isArray(ad.bands)) {
+            } else if (_.is.Array(ad.bands)) {
                 for (var bi in ad.bands) {
                     var band = ad.bands[bi];
                     rd[band] = self.initd.channel(self.initd, request.params.id, band);
